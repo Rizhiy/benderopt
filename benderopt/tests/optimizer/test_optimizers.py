@@ -106,3 +106,6 @@ def test_suggestions_with_global_seed_reset():
     minimize(eval_, params, optimizer_type="parzen_estimator", number_of_evaluation=5)
 
     assert len(suggestions) == len(set(suggestions))
+
+
+# TODO: Add test for parallel minimize and exception handling

@@ -23,6 +23,6 @@ setup(
     classifiers=["Programming Language :: Python", "Programming Language :: Python :: 3"],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    install_requires=["numpy>=1.15.4", "scipy>=1.1.0"],
+    install_requires=["numpy>=1.15.4", "scipy>=1.1.0", "tqdm"],
     extras_require={"test": ["pytest", "pytest-coverage"], "dev": ["black", "isort"]},
 )

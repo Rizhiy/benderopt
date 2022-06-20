@@ -22,3 +22,6 @@ class Observation:
     @property
     def parameters_name(self):
         return set(self.sample.keys())
+
+    def __str__(self):
+        return "SAMPLE={sample} LOSS={loss}".format(sample=self.sample, loss=self.loss)
