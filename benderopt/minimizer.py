@@ -3,7 +3,7 @@ import multiprocessing as mp
 import os
 import time
 import traceback
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Type, Union
 
 import numpy as np
 from tqdm import tqdm, trange
@@ -86,17 +86,24 @@ def _worker(
 
 def parallel_minimize(
     f: Callable,
-    problem_parameters: Dict[str, Any],
-    optimizer_type: Union[str, BaseOptimizer] = ParzenEstimator,
+    problem_parameters: List[Dict[str, Any]],
+    optimizer_type: Union[str, Type[BaseOptimizer]] = ParzenEstimator,
     num_runs=100,
     seed=None,
     return_all=False,
     num_proc: int = None,
 ) -> Union[Observation, List[Observation]]:
+    if not problem_parameters:
+        raise ValueError("No problem_parameters have been provided")
     num_proc = min(num_proc or os.cpu_count(), num_runs)
     logger = logging.getLogger("benderopt.parallel_minimize")
 
     RNG.seed(seed)
+    num_params = len(problem_parameters)
+    if num_runs < num_params**2:
+        logger.warning(
+            f"{num_runs} is usually not enough to properly optimise {num_params} parameters"
+        )
 
     optimization_problem = OptimizationProblem.from_list(problem_parameters)
 
