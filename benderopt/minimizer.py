@@ -85,77 +85,86 @@ def _worker(
 
 
 def parallel_minimize(
-    f: Callable,
-    problem_parameters: List[Dict[str, Any]],
-    optimizer_type: Union[str, Type[BaseOptimizer]] = ParzenEstimator,
-    num_runs=100,
+    eval_func: Callable[..., float],
+    problem: Union[OptimizationProblem, List[Dict[str, Any]]],
+    optimizer: Union[Type[BaseOptimizer], str] = ParzenEstimator,
+    num_runs: int = None,
     seed=None,
     return_all=False,
     num_proc: int = None,
 ) -> Union[Observation, List[Observation]]:
-    if not problem_parameters:
-        raise ValueError("No problem_parameters have been provided")
-    num_proc = min(num_proc or os.cpu_count(), num_runs)
+    """
+    Run multiple evaluations in parallel. Should be much faster on single-threaded tasks
+    Performance might be decreased because of overlaps, increase num_runs to compensate.
+
+    :param eval_func: Function to optimise
+    :param problem: Problem to optimise or list of parameters
+    :param optimizer: Which optimizer to use
+    :param num_runs: How many evaluations to perform
+    :param seed: Seed for random number generator
+    :param return_all: Whether to return all observations or just the best
+    :param num_proc: How many processes to use
+    """
     logger = logging.getLogger("benderopt.parallel_minimize")
 
-    RNG.seed(seed)
-    num_params = len(problem_parameters)
+    if not isinstance(problem, OptimizationProblem):
+        problem = OptimizationProblem.from_list(problem)
+    if not problem.parameters:
+        raise ValueError("No problem_parameters have been provided")
+
+    num_params = len(problem.parameters)
+    num_runs = num_runs or len(num_params) ** 3  # Empirically seems to produce good results
     if num_runs < num_params**2:
         logger.warning(
             f"{num_runs} is usually not enough to properly optimise {num_params} parameters"
         )
 
-    optimization_problem = OptimizationProblem.from_list(problem_parameters)
+    num_proc = min(num_proc or os.cpu_count(), num_runs)
 
-    if isinstance(optimizer_type, str):
-        optimizer_type = optimizers[optimizer_type]
-    if not issubclass(optimizer_type, BaseOptimizer):
+    RNG.seed(seed)
+
+    if isinstance(optimizer, str):
+        optimizer = optimizers[optimizer]
+    if not issubclass(optimizer, BaseOptimizer):
         raise ValueError(
-            "optimizer_type should either be a string or a subclass of BaseOptimizer, got {}".format(
-                optimizer_type
-            )
+            f"optimizer_type should either be a string or a subclass of BaseOptimizer, got {optimizer}"
         )
-    optimizer = optimizer_type(optimization_problem)
+    optimizer = optimizer(problem)
 
     sample_queue = mp.Queue()
     result_queue = mp.Queue()
     tbar = trange(num_runs, desc="Optimizing")
-    processes = [
-        mp.Process(target=_worker, args=(f, sample_queue, result_queue, seed, tbar))
-        for _ in range(num_proc)
-    ]
+
+    proc_args = eval_func, sample_queue, result_queue, seed, tbar
+    processes = [mp.Process(target=_worker, args=proc_args) for _ in range(num_proc)]
     for proc in processes:
         proc.start()
-
-    for _ in range(num_proc):
-        new_sample = optimizer.suggest()
-        sample_queue.put(new_sample)
+        sample_queue.put(optimizer.suggest())
 
     best_loss = np.inf
     for iter_idx in tbar:
         sample, loss = result_queue.get()
-        logger.debug(
-            "loss={loss} for optimizer suggestion: {sample}".format(loss=loss, sample=sample)
-        )
+        logger.debug(f"loss={loss:.2e} for optimizer suggestion: {sample}")
         if loss < best_loss:
-            tbar.set_description("Optimizing, best = {loss:.2e}".format(loss=loss))
+            tbar.set_description(f"Optimizing, best = {loss:.2e}")
             best_loss = loss
-        optimization_problem.add_observation(
-            Observation.from_dict({"loss": loss, "sample": sample})
-        )
+        problem.add_observation(Observation.from_dict({"loss": loss, "sample": sample}))
         sample_queue.put(optimizer.suggest() if iter_idx < num_runs - num_proc else None)
 
+    sleep_time = 0.01
+    sleeps_remaining = int(1 / sleep_time)
     for proc in processes:
         proc.terminate()
-        for _ in range(100):  # Wait at most 1 sec
+        while sleeps_remaining:  # Wait at most 1 sec
             if not proc.is_alive():
                 break
-            time.sleep(0.01)
+            time.sleep(sleep_time)
+            sleeps_remaining -= 1
+        proc.kill()
         proc.close()
 
-    if return_all:
-        return optimization_problem.sorted_observations
-    return optimization_problem.sorted_observations[0]
+    obss = problem.sorted_observations
+    return obss if return_all else obss[0]
 
 
 if __name__ == "__main__":
