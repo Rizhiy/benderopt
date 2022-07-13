@@ -3,6 +3,7 @@ import numpy as np
 from benderopt.utils import logb
 
 from ..base import Parameter
+from ..base.optimization_problem import OptimizationProblem
 from ..rng import RNG
 from .optimizer import BaseOptimizer
 from .random import RandomOptimizer
@@ -25,7 +26,7 @@ class ParzenEstimator(BaseOptimizer):
 
     def __init__(
         self,
-        optimization_problem,
+        optimization_problem: OptimizationProblem,
         gamma=0.15,
         number_of_candidates=100,
         subsampling=100,
@@ -65,7 +66,6 @@ class ParzenEstimator(BaseOptimizer):
         posterior_parameters_l = []
         posterior_parameters_g = []
         for parameter in self.parameters:
-
             # 1.a Build empirical distribution of good observations and bad obsevations
             posterior_parameter_l = self._build_posterior_parameter(parameter, observations_l)
             posterior_parameters_l.append(posterior_parameter_l)

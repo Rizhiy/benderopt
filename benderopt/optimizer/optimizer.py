@@ -1,5 +1,8 @@
+from benderopt.base.optimization_problem import OptimizationProblem
+
+
 class BaseOptimizer:
-    def __init__(self, optimization_problem):
+    def __init__(self, optimization_problem: OptimizationProblem):
         self.optimization_problem = optimization_problem
 
     @property

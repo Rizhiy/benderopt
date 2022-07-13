@@ -113,7 +113,7 @@ def parallel_minimize(
         raise ValueError("No problem_parameters have been provided")
 
     num_params = len(problem.parameters)
-    num_runs = num_runs or len(num_params) ** 3  # Empirically seems to produce good results
+    num_runs = num_runs or num_params**3  # Empirically seems to produce good results
     if num_runs < num_params**2:
         logger.warning(
             f"{num_runs} is usually not enough to properly optimise {num_params} parameters"
