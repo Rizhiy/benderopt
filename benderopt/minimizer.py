@@ -17,12 +17,13 @@ from benderopt.rng import RNG
 LOGGER = logging.getLogger(__name__)
 
 
-def _execute_func(f: Callable, sample: Dict[str, Any]) -> Any:
+def _execute_func(f: Callable, sample: Dict[str, Any], error_loss: float = None) -> Any:
+    error_loss = error_loss or np.inf
     try:
         result = f(**sample)
     except Exception:
         LOGGER.exception("Got an exception while evaluating {} on {}".format(f, sample))
-        result = np.inf
+        result = error_loss
     return result
 
 
@@ -69,7 +70,12 @@ def minimize(
 
 
 def _worker(
-    f: Callable, sample_queue: mp.Queue, result_queue: mp.Queue, seed=None, main_bar: tqdm = None
+    f: Callable,
+    sample_queue: mp.Queue,
+    result_queue: mp.Queue,
+    seed=None,
+    main_bar: tqdm = None,
+    error_loss: float = None,
 ):
     # This is technically incorrect since all processes will use the same random sequence
     # TODO: Need to think about how to initialise it better
@@ -80,7 +86,7 @@ def _worker(
         sample = sample_queue.get()
         if sample is None:
             break
-        result = _execute_func(f, sample)
+        result = _execute_func(f, sample, error_loss)
         result_queue.put((sample, result))
 
 
@@ -92,6 +98,7 @@ def parallel_minimize(
     seed=None,
     return_all=False,
     num_proc: int = None,
+    error_loss: float = None,
 ) -> Union[Observation, List[Observation]]:
     """
     Run multiple evaluations in parallel. Should be much faster on single-threaded tasks
@@ -104,6 +111,7 @@ def parallel_minimize(
     :param seed: Seed for random number generator
     :param return_all: Whether to return all observations or just the best
     :param num_proc: How many processes to use
+    :param error_loss: Loss to return in case of an exception, will be np.inf by default
     """
     logger = logging.getLogger("benderopt.parallel_minimize")
 
@@ -135,7 +143,7 @@ def parallel_minimize(
     result_queue = mp.Queue()
     tbar = trange(num_runs, desc="Optimizing")
 
-    proc_args = eval_func, sample_queue, result_queue, seed, tbar
+    proc_args = eval_func, sample_queue, result_queue, seed, tbar, error_loss
     processes = [mp.Process(target=_worker, args=proc_args) for _ in range(num_proc)]
     for proc in processes:
         proc.start()
