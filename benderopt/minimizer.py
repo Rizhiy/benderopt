@@ -2,7 +2,6 @@ import logging
 import multiprocessing as mp
 import os
 import time
-import traceback
 from typing import Any, Callable, Dict, List, Type, Union
 
 import numpy as np
@@ -18,10 +17,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _execute_func(f: Callable, sample: Dict[str, Any], error_loss: float = None) -> Any:
-    error_loss = error_loss or np.inf
     try:
         result = f(**sample)
     except Exception:
+        if error_loss is None:
+            raise
         LOGGER.exception("Got an exception while evaluating {} on {}".format(f, sample))
         result = error_loss
     return result
@@ -111,7 +111,7 @@ def parallel_minimize(
     :param seed: Seed for random number generator
     :param return_all: Whether to return all observations or just the best
     :param num_proc: How many processes to use
-    :param error_loss: Loss to return in case of an exception, will be np.inf by default
+    :param error_loss: If specified, error will return this value instead of failing
     """
     logger = logging.getLogger("benderopt.parallel_minimize")
 
