@@ -43,12 +43,6 @@ def minimize(
 
     if isinstance(optimizer_type, str):
         optimizer_type = optimizers[optimizer_type]
-    if not issubclass(optimizer_type, BaseOptimizer):
-        raise ValueError(
-            "optimizer_type should either be a string or a subclass of BaseOptimizer, got {}".format(
-                optimizer_type
-            )
-        )
     optimizer = optimizer_type(optimization_problem)
 
     tbar = trange(number_of_evaluation, desc="Optimizing")
@@ -133,10 +127,6 @@ def parallel_minimize(
 
     if isinstance(optimizer, str):
         optimizer = optimizers[optimizer]
-    if not issubclass(optimizer, BaseOptimizer):
-        raise ValueError(
-            f"optimizer_type should either be a string or a subclass of BaseOptimizer, got {optimizer}"
-        )
     optimizer = optimizer(problem)
 
     sample_queue = mp.Queue()
